@@ -403,8 +403,8 @@ echo "Copying necessary library-files to jail (may take some time)"
 # the old method with $HOME/ldlist[2] (so I don't have to check the existence
 # of the mktemp package / binary at the beginning
 #
-TMPFILE1=`mktemp` &> /dev/null ||  TMPFILE1="${HOME}/ldlist"; if [ -x ${TMPFILE1} ]; then mv ${TMPFILE1} ${TMPFILE1}.bak;fi
-TMPFILE2=`mktemp` &> /dev/null ||  TMPFILE2="${HOME}/ldlist2"; if [ -x ${TMPFILE2} ]; then mv ${TMPFILE2} ${TMPFILE2}.bak;fi
+TMPFILE1=`mktemp` ||  TMPFILE1="${HOME}/ldlist"; if [ -x ${TMPFILE1} ]; then mv ${TMPFILE1} ${TMPFILE1}.bak;fi
+TMPFILE2=`mktemp` ||  TMPFILE2="${HOME}/ldlist2"; if [ -x ${TMPFILE2} ]; then mv ${TMPFILE2} ${TMPFILE2}.bak;fi
 
 for app in $APPS;  do
     # First of all, check that this application exists
@@ -469,7 +469,7 @@ elif [ "$DISTRO" = REDHAT ]; then
   # needed for scp on RHEL
   echo "export LD_LIBRARY_PATH=/usr/kerberos/lib" >> ${JAILPATH}/etc/profile
 elif [ "$DISTRO" = DEBIAN ]; then
-  cp /lib/libnss_compat.so.2 /lib/libnsl.so.1 /lib/libnss_files.so.2 /lib/libcap.so.1 /lib/libnss_dns.so.2 ${JAILPATH}/lib/
+  cp /lib/x86_64-linux-gnu/libnss_compat.so.2 /lib/x86_64-linux-gnu/libnsl.so.1 /lib/x86_64-linux-gnu/libnss_files.so.2 /lib/x86_64-linux-gnu/libcap.so.2 /lib/x86_64-linux-gnu/libnss_dns.so.2 ${JAILPATH}/lib/
 else
   cp /lib/libnss_compat.so.2 /lib/libnsl.so.1 /lib/libnss_files.so.2 /lib/libcap.so.1 /lib/libnss_dns.so.2 ${JAILPATH}/lib/
 fi
@@ -487,7 +487,7 @@ cp /etc/pam.d/* ${JAILPATH}/etc/pam.d/
 
 # ...and of course the PAM-modules...
 echo "Copying PAM-Modules to jail"
-cp -r /lib/security ${JAILPATH}/lib/
+cp -r /lib/x86_64-linux-gnu/security ${JAILPATH}/lib/
 
 # ...and something else useful for PAM
 cp -r /etc/security ${JAILPATH}/etc/
