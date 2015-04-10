@@ -35,6 +35,21 @@ RELEASE="2008-04-26"
 # - move existing accounts to chroot
 #####################################################################
 
+# 
+# Modified by pmenhart/Benbria:
+# - work on Ubuntu 8.04
+# - added APPS: cat more less nano
+# - copy /lib/terminfo
+# - made the script non-interactive
+# -- create user without a password
+# -- if the user exists and jailed then do nothing
+# -- if the user exists then jail her
+# -- do not create shell if already exists
+#
+# Original: http://www.devcu.com/forums/topic/560-chrootjail-users-for-sshscp-ubuntu-1204/
+# Based on http://www.fuschlberger.net/programs/ssh-scp-sftp-chroot-jail/
+#####################################################################
+
 # path to sshd's config file: needed for automatic detection of the locaten of
 # the sftp-server binary
 SSHD_CONFIG="/etc/ssh/sshd_config"
@@ -74,24 +89,22 @@ if [ -z "$PATH" ] ; then
 fi
 
 echo
-echo Release: $RELEASE
+echo $0 Release: $RELEASE
 echo
 
-echo "Am I root?  "
 if [ "$(whoami &2>/dev/null)" != "root" ] && [ "$(id -un &2>/dev/null)" != "root" ] ; then
-  echo "  NO!
-
-Error: You must be root to run this script."
+  echo "Error: You must be root to run this script."
   exit 1
 fi
-echo "  OK";
 
 # Check existence of necessary files
 echo "Checking distribution... "
 if [ -f /etc/debian_version ];
-  then echo "  Supported Distribution found"
+  then echo -n "  Supported Distribution found:"
        echo "  System is running Debian Linux"
        DISTRO=DEBIAN;
+       ### Check Ubuntu version (e.g. hardy, precise)
+       UBUNTU_CODENAME=`lsb_release -c | cut -f 2`
 elif [ -f /etc/SuSE-release ];
   then echo "  Supported Distribution found"
        echo "  System is running SuSE Linux"
@@ -104,8 +117,8 @@ elif [ -f /etc/redhat-release ];
   then echo "  Supported Distribution found"
        echo "  System is running Red Hat Linux"
        DISTRO=REDHAT;
-else echo -e "  failed...........\nThis script works best on Debian, Red Hat, Fedora and SuSE Linux!\nLet's try it nevertheless....\nIf some program files cannot be found adjust the respective path in line 98\n"
-#exit 1
+else echo -e "  failed...........\nThis script works best on Debian, Red Hat, Fedora and SuSE Linux!\n"
+exit 1
 fi
 
 # Specify the apps you want to copy to the jail
@@ -116,13 +129,13 @@ elif [ "$DISTRO" = FEDORA ]; then
 elif [ "$DISTRO" = REDHAT ]; then
   APPS="/bin/bash /bin/cp /usr/bin/dircolors /bin/ls /bin/mkdir /bin/mv /bin/rm /bin/rmdir /bin/sh /bin/su /usr/bin/groups /usr/bin/id /usr/bin/nc /usr/bin/rsync /usr/bin/ssh /usr/bin/scp /sbin/unix_chkpwd"
 elif [ "$DISTRO" = DEBIAN ]; then
-  APPS="/bin/bash /bin/cp /usr/bin/dircolors /bin/ls /bin/mkdir /bin/mv /bin/rm /bin/rmdir /bin/sh /bin/su /usr/bin/groups /usr/bin/id /usr/bin/rsync /usr/bin/ssh /usr/bin/scp /sbin/unix_chkpwd"
+  APPS="/bin/bash /bin/cp /usr/bin/dircolors /bin/ls /bin/mkdir /bin/mv /bin/rm /bin/rmdir /bin/sh /bin/su /usr/bin/groups /usr/bin/id /usr/bin/rsync /usr/bin/ssh /usr/bin/scp /sbin/unix_chkpwd /bin/cat /bin/more /usr/bin/less /usr/bin/nano"
 else
   APPS="/bin/bash /bin/cp /usr/bin/dircolors /bin/ls /bin/mkdir /bin/mv /bin/rm /bin/rmdir /bin/sh /bin/su /usr/bin/groups /usr/bin/id /usr/bin/rsync /usr/bin/ssh /usr/bin/scp /usr/sbin/unix_chkpwd"
 fi
 
 # Check existence of necessary files
-echo "Checking for which... " 
+echo -n "Checking for which... "
 #if [ -f $(which which) ] ;
 # not good because if which does not exist I look for an 
 # empty filename and get OK nevertheless
@@ -135,7 +148,7 @@ Please install which-binary!
 exit 1
 fi
 
-echo "Checking for chroot..." 
+echo -n "Checking for chroot..."
 if [ `which chroot` ];
   then echo "  OK";
   else echo "  failed
@@ -146,7 +159,7 @@ Please install chroot-package/binary!
 exit 1
 fi
 
-echo "Checking for sudo..." 
+echo -n "Checking for sudo..."
 if [ `which sudo` ]; then
   echo "  OK";
 else 
@@ -158,7 +171,7 @@ Please install sudo-package/binary!
 exit 1
 fi
 
-echo "Checking for dirname..." 
+echo -n "Checking for dirname..."
 if [ `which dirname` ]; then
   echo "  OK";
 else 
@@ -170,7 +183,7 @@ Please install dirname-binary (to be found eg in the package coreutils)!
 exit 1
 fi
 
-echo "Checking for awk..." 
+echo -n "Checking for awk..."
 if [ `which awk` ]; then
   echo "  OK
 ";
@@ -231,20 +244,13 @@ fi
 # Check if user already exists and ask for confirmation
 # we have to trust that root knows what she is doing when saying 'yes'
 if ( id $CHROOT_USERNAME > /dev/null 2>&1 ) ; then {
-echo "
------------------------------
-User $CHROOT_USERNAME exists. 
-
-Are you sure you want to modify the users home directory and lock him into the
-chroot directory?
-Are you REALLY sure?
-Say only yes if you absolutely know what you are doing!"
-  read -p "(yes/no) -> " MODIFYUSER
-  if [ "$MODIFYUSER" != "yes" ]; then
-    echo "
-Not entered yes. Exiting...."
+  echo -n "User $CHROOT_USERNAME exists. "
+  if [ -d $JAILPATH/home/$CHROOT_USERNAME ] ; then
+    echo "Already jailed. Exiting...."
     exit 1
   fi
+  echo "Adding the user to jail."
+  MODIFYUSER="yes"
 }
 else
   CREATEUSER="yes"
@@ -252,20 +258,7 @@ fi
 
 # Create $SHELL (shell for jailed accounts)
 if [ -f ${SHELL} ] ; then
-  echo "
------------------------------
-The file $SHELL exists. 
-Probably it was created by this script.
-
-Are you sure you want to overwrite it?
-(you want to say yes for example if you are running the script for the second
-time when adding more than one account to the jail)"
-read -p "(yes/no) -> " OVERWRITE
-if [ "$OVERWRITE" != "yes" ]; then
-  echo "
-Not entered yes. Exiting...."
-  exit 1
-fi
+  echo "The file $SHELL already exists."
 else
   echo "Creating $SHELL"
   echo '#!/bin/sh' > $SHELL
@@ -328,14 +321,9 @@ usermod -d "$HOMEDIR" -m -s "$SHELL" $CHROOT_USERNAME && chmod 700 "$HOMEDIR"
 fi
 
 if [ "$CREATEUSER" = "yes" ] ; then {
-echo "Adding User \"$CHROOT_USERNAME\" to system"
+echo "Adding User \"$CHROOT_USERNAME\" to system (no password)"
 useradd -m -d "$HOMEDIR" -s "$SHELL" $CHROOT_USERNAME && chmod 700 "$HOMEDIR"
 
-# Enter password for new account
-if !(passwd $CHROOT_USERNAME);
-  then echo "Passwords are probably not the same, try again."
-  exit 1;
-fi
 echo
 }
 fi
@@ -430,7 +418,7 @@ done
 # Clear out any old temporary file before we start
 for libs in `cat ${TMPFILE1}`; do
    frst_char="`echo $libs | cut -c1`"
-   if [ "$frst_char" = "/" ]; then
+   if [ "\"$frst_char\"" = "\"/\"" ]; then
      echo "$libs" >> ${TMPFILE2}
    fi
 done
@@ -469,7 +457,13 @@ elif [ "$DISTRO" = REDHAT ]; then
   # needed for scp on RHEL
   echo "export LD_LIBRARY_PATH=/usr/kerberos/lib" >> ${JAILPATH}/etc/profile
 elif [ "$DISTRO" = DEBIAN ]; then
-  cp /lib/x86_64-linux-gnu/libnss_compat.so.2 /lib/x86_64-linux-gnu/libnsl.so.1 /lib/x86_64-linux-gnu/libnss_files.so.2 /lib/x86_64-linux-gnu/libcap.so.2 /lib/x86_64-linux-gnu/libnss_dns.so.2 ${JAILPATH}/lib/
+  if [ "$UBUNTU_CODENAME" = "hardy" ]; then
+    cp /lib/libnss_compat.so.2 /lib/libnsl.so.1 /lib/libnss_files.so.2 /lib/libcap.so.1 /lib/libnss_dns.so.2 ${JAILPATH}/lib/
+  else
+    cp /lib/x86_64-linux-gnu/libnss_compat.so.2 /lib/x86_64-linux-gnu/libnsl.so.1 /lib/x86_64-linux-gnu/libnss_files.so.2 /lib/x86_64-linux-gnu/libcap.so.2 /lib/x86_64-linux-gnu/libnss_dns.so.2 ${JAILPATH}/lib/
+  fi
+  # needed for less and nano
+  cp -ar /lib/terminfo ${JAILPATH}/lib/
 else
   cp /lib/libnss_compat.so.2 /lib/libnsl.so.1 /lib/libnss_files.so.2 /lib/libcap.so.1 /lib/libnss_dns.so.2 ${JAILPATH}/lib/
 fi
@@ -488,6 +482,8 @@ cp /etc/pam.d/* ${JAILPATH}/etc/pam.d/
 # ...and of course the PAM-modules...
 echo "Copying PAM-Modules to jail"
 cp -r /lib/x86_64-linux-gnu/security ${JAILPATH}/lib/
+# this is needed for Ubuntu 8.04, but will not hurt on 12.04 neither
+cp -r /lib/security ${JAILPATH}/lib/
 
 # ...and something else useful for PAM
 cp -r /etc/security ${JAILPATH}/etc/
