@@ -19,3 +19,16 @@ Additional changes:
  * tested on Ubuntu 8.04 to 14.04
  * added APPS: cat more less nano
  * copied /lib/terminfo
+
+## Interested in a more recent version?
+This script is quite old and may not work with recent releases of popular Linux distributions. An updated script with expanded functionality can be found at https://github.com/McSim85/make_chroot_jail
+
+Major improvements:
+* tested on Debian 9
+* added more friendly help
+* script became more talkative
+* Added lots of CLI options (see -h option)
+* if you use a single partition, you can use hard links instead of copy (use -l, --link options)
+* removed APPS: cat more less nano (now, you can add it by CLI option -a )
+* a second script to make chroot environment for SSH-server with configuration options
+
